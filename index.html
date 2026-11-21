@@ -272,7 +272,7 @@
       {
         id: 'edit',
         name: 'Edit PDF',
-        desc: 'Add text, whiteout, boxes, or freehand signatures directly on PDF pages.',
+        desc: 'Add & edit formatted text (font, size, bold/italic), whiteout, boxes, or signatures.',
         category: 'organize',
         badge: 'New',
         accentBg: 'bg-indigo-50',
@@ -363,12 +363,18 @@
       currentPage: 1,
       totalPages: 0,
       mode: 'text',
-      color: '#E5322D',
+      fontFamily: 'helvetica',
       fontSize: 18,
+      bold: true,
+      italic: false,
+      color: '#111827',
       annotations: {},
+      selectedTextId: null,
+      draggingTextId: null,
+      dragOffset: { x: 0, y: 0 },
       isDrawing: false,
       currentAction: null,
-      viewportScale: 1.35
+      viewportScale: 2
     };
 
     const homeView = document.getElementById('homeView');
@@ -407,9 +413,38 @@
     }
 
     function hexToRgbNorm(hex) {
-      const clean = (hex || '#E5322D').replace('#', '');
+      const clean = (hex || '#111827').replace('#', '');
       const num = parseInt(clean, 16);
       return PDFLib.rgb(((num >> 16) & 255) / 255, ((num >> 8) & 255) / 255, (num & 255) / 255);
+    }
+
+    function getCssFont(item) {
+      const stylePart = item.italic ? 'italic ' : 'normal ';
+      const weightPart = item.bold ? '700 ' : '400 ';
+      let familyCss = 'Arial, Helvetica, sans-serif';
+      if (item.fontFamily === 'times') familyCss = '"Times New Roman", Times, serif';
+      if (item.fontFamily === 'courier') familyCss = '"Courier New", Courier, monospace';
+      return `${stylePart}${weightPart}${item.fontSize}px ${familyCss}`;
+    }
+
+    function getPdfStandardFontKey(item) {
+      const fam = item.fontFamily || 'helvetica';
+      if (fam === 'times') {
+        if (item.bold && item.italic) return PDFLib.StandardFonts.TimesRomanBoldItalic;
+        if (item.bold) return PDFLib.StandardFonts.TimesRomanBold;
+        if (item.italic) return PDFLib.StandardFonts.TimesRomanItalic;
+        return PDFLib.StandardFonts.TimesRoman;
+      }
+      if (fam === 'courier') {
+        if (item.bold && item.italic) return PDFLib.StandardFonts.CourierBoldOblique;
+        if (item.bold) return PDFLib.StandardFonts.CourierBold;
+        if (item.italic) return PDFLib.StandardFonts.CourierOblique;
+        return PDFLib.StandardFonts.Courier;
+      }
+      if (item.bold && item.italic) return PDFLib.StandardFonts.HelveticaBoldOblique;
+      if (item.bold) return PDFLib.StandardFonts.HelveticaBold;
+      if (item.italic) return PDFLib.StandardFonts.HelveticaOblique;
+      return PDFLib.StandardFonts.Helvetica;
     }
 
     function renderToolCards(filter = 'all') {
@@ -470,6 +505,8 @@
       editorState.totalPages = 0;
       editorState.mode = 'text';
       editorState.annotations = {};
+      editorState.selectedTextId = null;
+      editorState.draggingTextId = null;
       editorState.isDrawing = false;
       editorState.currentAction = null;
 
@@ -645,12 +682,12 @@
 
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
           const page = await pdf.getPage(pageNum);
-          const viewport = page.getViewport({ scale: 0.35 });
+          const viewport = page.getViewport({ scale: 0.45 });
           const canvas = document.createElement('canvas');
           canvas.width = viewport.width;
           canvas.height = viewport.height;
           await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
           if (mode === 'organize') {
             state.organizedPages[pageNum - 1].thumb = dataUrl;
@@ -725,43 +762,114 @@
       }));
     }
 
+    function getSelectedTextItem() {
+      if (!editorState.selectedTextId) return null;
+      const list = editorState.annotations[editorState.currentPage] || [];
+      return list.find(it => it.type === 'text' && it.id === editorState.selectedTextId) || null;
+    }
+
+    function syncTextInspectorBar() {
+      const bar = document.getElementById('textInspectorBar');
+      if (!bar) return;
+      const selected = getSelectedTextItem();
+
+      if (!selected) {
+        bar.classList.add('hidden');
+        return;
+      }
+
+      bar.classList.remove('hidden');
+      const textInput = document.getElementById('edSelectedTextInput');
+      const fontSelect = document.getElementById('edFontFamily');
+      const sizeSelect = document.getElementById('edFontSize');
+      const boldBtn = document.getElementById('edBoldBtn');
+      const italicBtn = document.getElementById('edItalicBtn');
+      const colorPicker = document.getElementById('edColorPicker');
+
+      if (textInput) textInput.value = selected.text;
+      if (fontSelect) fontSelect.value = selected.fontFamily || 'helvetica';
+      if (sizeSelect) sizeSelect.value = String(selected.fontSize || 18);
+      if (colorPicker) colorPicker.value = selected.color || '#111827';
+
+      if (boldBtn) {
+        boldBtn.className = selected.bold
+          ? 'px-2.5 py-1.5 rounded-lg text-xs font-extrabold bg-gray-900 text-white'
+          : 'px-2.5 py-1.5 rounded-lg text-xs font-extrabold bg-white border border-gray-300 text-gray-700';
+      }
+      if (italicBtn) {
+        italicBtn.className = selected.italic
+          ? 'px-2.5 py-1.5 rounded-lg text-xs italic font-bold bg-gray-900 text-white'
+          : 'px-2.5 py-1.5 rounded-lg text-xs italic font-bold bg-white border border-gray-300 text-gray-700';
+      }
+    }
+
     async function initPdfEditor() {
       const file = state.files[0];
       if (!file) return;
       try {
-        setStatus('loading', 'Loading PDF into Editor...');
+        setStatus('loading', 'Loading crisp PDF into Editor...');
         editorState.fileBytes = await file.arrayBuffer();
         editorState.pdfDoc = await pdfjsLib.getDocument({ data: editorState.fileBytes.slice(0) }).promise;
         editorState.totalPages = editorState.pdfDoc.numPages;
         editorState.currentPage = 1;
         editorState.mode = 'text';
         editorState.annotations = {};
+        editorState.selectedTextId = null;
         hideStatus();
 
         optionsPanel.classList.remove('hidden');
         optionsPanel.innerHTML = `
           <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-gray-200">
             <div class="flex flex-wrap items-center gap-1.5">
-              <button type="button" data-ed-mode="text" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-[#E5322D] text-white">T Add Text</button>
-              <button type="button" data-ed-mode="draw" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 text-gray-700">✎ Draw / Sign</button>
-              <button type="button" data-ed-mode="rect" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 text-gray-700">▭ Box</button>
+              <button type="button" data-ed-mode="text" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-[#E5322D] text-white">T Add / Edit Text</button>
               <button type="button" data-ed-mode="whiteout" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 text-gray-700">⬜ Whiteout</button>
+              <button type="button" data-ed-mode="rect" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 text-gray-700">▭ Box</button>
+              <button type="button" data-ed-mode="draw" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 text-gray-700">✎ Draw / Sign</button>
             </div>
             <div class="flex items-center gap-2">
-              <label class="text-xs font-semibold text-gray-600">Color:</label>
-              <input id="edColorPicker" type="color" value="${editorState.color}" class="w-7 h-7 rounded cursor-pointer border border-gray-300" />
-              <select id="edFontSize" class="text-xs font-semibold bg-white border border-gray-200 rounded-lg px-2 py-1.5">
-                <option value="14">14px</option>
-                <option value="18" selected>18px</option>
-                <option value="24">24px</option>
-                <option value="32">32px</option>
-              </select>
               <button type="button" id="edUndoBtn" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-gray-200 hover:bg-gray-300 text-gray-800">↩ Undo</button>
             </div>
           </div>
 
+          <!-- Word-Style Formatting Bar For Added Text -->
+          <div id="textInspectorBar" class="hidden p-3 bg-white border border-indigo-200 rounded-xl shadow-2xs space-y-2.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-700">Selected Text Formatting (Word Style)</span>
+              <button type="button" id="edDeleteTextBtn" class="text-xs font-bold text-red-600 hover:underline">🗑 Delete Text</button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+              <div class="sm:col-span-5">
+                <input id="edSelectedTextInput" type="text" placeholder="Type or edit text..." class="w-full px-3 py-1.5 text-xs font-semibold bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500" />
+              </div>
+              <div class="sm:col-span-3">
+                <select id="edFontFamily" class="w-full px-2.5 py-1.5 text-xs font-semibold bg-gray-50 border border-gray-300 rounded-lg">
+                  <option value="helvetica">Sans (Helvetica)</option>
+                  <option value="times">Serif (Times)</option>
+                  <option value="courier">Mono (Courier)</option>
+                </select>
+              </div>
+              <div class="sm:col-span-2">
+                <select id="edFontSize" class="w-full px-2 py-1.5 text-xs font-semibold bg-gray-50 border border-gray-300 rounded-lg">
+                  <option value="12">12px</option>
+                  <option value="14">14px</option>
+                  <option value="16">16px</option>
+                  <option value="18">18px</option>
+                  <option value="22">22px</option>
+                  <option value="26">26px</option>
+                  <option value="32">32px</option>
+                  <option value="40">40px</option>
+                </select>
+              </div>
+              <div class="sm:col-span-2 flex items-center gap-1.5">
+                <button type="button" id="edBoldBtn" title="Bold">B</button>
+                <button type="button" id="edItalicBtn" title="Italic">I</button>
+                <input id="edColorPicker" type="color" value="#111827" title="Text / Tool Color" class="w-7 h-7 rounded cursor-pointer border border-gray-300 shrink-0" />
+              </div>
+            </div>
+          </div>
+
           <div class="flex items-center justify-between text-xs font-semibold text-gray-600">
-            <span id="edHintText">Click anywhere on the PDF page to place text.</span>
+            <span id="edHintText">Click existing added text to edit/drag, or click empty space to add new text. (Cover old PDF text with Whiteout first.)</span>
             <div class="flex items-center gap-2">
               <button type="button" id="edPrevPage" class="px-2.5 py-1 bg-white border border-gray-200 rounded-lg hover:bg-gray-100">◀ Prev</button>
               <span id="edPageIndicator">Page 1 of ${editorState.totalPages}</span>
@@ -784,12 +892,35 @@
       }
     }
 
+    function hitTestTextItem(pos) {
+      const overlay = document.getElementById('pdfOverlayCanvas');
+      if (!overlay) return null;
+      const ctx = overlay.getContext('2d');
+      const list = editorState.annotations[editorState.currentPage] || [];
+
+      for (let i = list.length - 1; i >= 0; i--) {
+        const item = list[i];
+        if (item.type !== 'text') continue;
+        ctx.save();
+        ctx.font = getCssFont(item);
+        const w = Math.max(ctx.measureText(item.text).width, 24);
+        const h = item.fontSize * 1.25;
+        ctx.restore();
+
+        const top = item.y - item.fontSize;
+        if (pos.x >= item.x - 4 && pos.x <= item.x + w + 6 && pos.y >= top - 4 && pos.y <= top + h + 4) {
+          return item;
+        }
+      }
+      return null;
+    }
+
     function bindEditorControls() {
       const hints = {
-        text: 'Click anywhere on the PDF page to place text.',
-        draw: 'Click and drag to draw or add your signature.',
-        rect: 'Click and drag to draw a colored border box.',
-        whiteout: 'Click and drag over existing text to cover it with white.'
+        text: 'Click added text to edit/drag, or click empty area to add new text. Use Whiteout first to hide old PDF text.',
+        whiteout: 'Click and drag over existing PDF text to cover it cleanly with white.',
+        rect: 'Click and drag to draw a border box.',
+        draw: 'Click and drag to draw freehand or add a signature.'
       };
 
       optionsPanel.querySelectorAll('.ed-mode-btn').forEach(btn => {
@@ -804,23 +935,105 @@
         });
       });
 
-      document.getElementById('edColorPicker').addEventListener('input', e => {
-        editorState.color = e.target.value;
-      });
+      const textInput = document.getElementById('edSelectedTextInput');
+      const fontSelect = document.getElementById('edFontFamily');
+      const sizeSelect = document.getElementById('edFontSize');
+      const boldBtn = document.getElementById('edBoldBtn');
+      const italicBtn = document.getElementById('edItalicBtn');
+      const colorPicker = document.getElementById('edColorPicker');
+      const deleteTextBtn = document.getElementById('edDeleteTextBtn');
 
-      document.getElementById('edFontSize').addEventListener('change', e => {
-        editorState.fontSize = Number(e.target.value);
-      });
+      if (textInput) {
+        textInput.addEventListener('input', e => {
+          const sel = getSelectedTextItem();
+          if (!sel) return;
+          sel.text = e.target.value;
+          redrawOverlay();
+        });
+      }
+
+      if (fontSelect) {
+        fontSelect.addEventListener('change', e => {
+          editorState.fontFamily = e.target.value;
+          const sel = getSelectedTextItem();
+          if (sel) {
+            sel.fontFamily = e.target.value;
+            redrawOverlay();
+          }
+        });
+      }
+
+      if (sizeSelect) {
+        sizeSelect.addEventListener('change', e => {
+          const sz = Number(e.target.value);
+          editorState.fontSize = sz;
+          const sel = getSelectedTextItem();
+          if (sel) {
+            sel.fontSize = sz;
+            redrawOverlay();
+          }
+        });
+      }
+
+      if (boldBtn) {
+        boldBtn.addEventListener('click', () => {
+          const sel = getSelectedTextItem();
+          if (!sel) return;
+          sel.bold = !sel.bold;
+          editorState.bold = sel.bold;
+          syncTextInspectorBar();
+          redrawOverlay();
+        });
+      }
+
+      if (italicBtn) {
+        italicBtn.addEventListener('click', () => {
+          const sel = getSelectedTextItem();
+          if (!sel) return;
+          sel.italic = !sel.italic;
+          editorState.italic = sel.italic;
+          syncTextInspectorBar();
+          redrawOverlay();
+        });
+      }
+
+      if (colorPicker) {
+        colorPicker.addEventListener('input', e => {
+          editorState.color = e.target.value;
+          const sel = getSelectedTextItem();
+          if (sel) {
+            sel.color = e.target.value;
+            redrawOverlay();
+          }
+        });
+      }
+
+      if (deleteTextBtn) {
+        deleteTextBtn.addEventListener('click', () => {
+          if (!editorState.selectedTextId) return;
+          const list = editorState.annotations[editorState.currentPage] || [];
+          editorState.annotations[editorState.currentPage] = list.filter(it => it.id !== editorState.selectedTextId);
+          editorState.selectedTextId = null;
+          syncTextInspectorBar();
+          redrawOverlay();
+        });
+      }
 
       document.getElementById('edUndoBtn').addEventListener('click', () => {
         const list = editorState.annotations[editorState.currentPage] || [];
-        list.pop();
+        const removed = list.pop();
+        if (removed && removed.id === editorState.selectedTextId) {
+          editorState.selectedTextId = null;
+          syncTextInspectorBar();
+        }
         redrawOverlay();
       });
 
       document.getElementById('edPrevPage').addEventListener('click', async () => {
         if (editorState.currentPage > 1) {
           editorState.currentPage--;
+          editorState.selectedTextId = null;
+          syncTextInspectorBar();
           await renderEditorPage();
         }
       });
@@ -828,6 +1041,8 @@
       document.getElementById('edNextPage').addEventListener('click', async () => {
         if (editorState.currentPage < editorState.totalPages) {
           editorState.currentPage++;
+          editorState.selectedTextId = null;
+          syncTextInspectorBar();
           await renderEditorPage();
         }
       });
@@ -837,7 +1052,15 @@
         const r = overlay.getBoundingClientRect();
         const clientX = e.touches && e.touches.length ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches && e.touches.length ? e.touches[0].clientY : e.clientY;
-        return { x: clientX - r.left, y: clientY - r.top };
+        const dpr = window.devicePixelRatio || 1;
+        const logicalW = overlay.width / dpr;
+        const logicalH = overlay.height / dpr;
+        const scaleX = r.width ? logicalW / r.width : 1;
+        const scaleY = r.height ? logicalH / r.height : 1;
+        return {
+          x: (clientX - r.left) * scaleX,
+          y: (clientY - r.top) * scaleY
+        };
       };
 
       const startAction = e => {
@@ -848,21 +1071,41 @@
         }
 
         if (editorState.mode === 'text') {
-          const txt = prompt('Enter text to add on PDF:');
-          if (txt && txt.trim()) {
-            editorState.annotations[editorState.currentPage].push({
-              type: 'text',
-              x: pos.x,
-              y: pos.y,
-              text: txt.trim(),
-              color: editorState.color,
-              fontSize: editorState.fontSize
-            });
+          const hit = hitTestTextItem(pos);
+          if (hit) {
+            editorState.selectedTextId = hit.id;
+            editorState.draggingTextId = hit.id;
+            editorState.dragOffset = { x: pos.x - hit.x, y: pos.y - hit.y };
+            syncTextInspectorBar();
             redrawOverlay();
+            return;
+          }
+
+          const newItem = {
+            id: 'txt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            type: 'text',
+            x: pos.x,
+            y: pos.y,
+            text: 'Editable Text',
+            fontFamily: editorState.fontFamily,
+            fontSize: editorState.fontSize,
+            bold: editorState.bold,
+            italic: editorState.italic,
+            color: editorState.color
+          };
+          editorState.annotations[editorState.currentPage].push(newItem);
+          editorState.selectedTextId = newItem.id;
+          syncTextInspectorBar();
+          redrawOverlay();
+          if (textInput) {
+            textInput.focus();
+            textInput.select();
           }
           return;
         }
 
+        editorState.selectedTextId = null;
+        syncTextInspectorBar();
         editorState.isDrawing = true;
         if (editorState.mode === 'draw') {
           editorState.currentAction = { type: 'draw', color: editorState.color, points: [pos] };
@@ -880,6 +1123,18 @@
       };
 
       const moveAction = e => {
+        if (editorState.draggingTextId) {
+          if (e.cancelable) e.preventDefault();
+          const pos = getPos(e);
+          const sel = getSelectedTextItem();
+          if (sel) {
+            sel.x = pos.x - editorState.dragOffset.x;
+            sel.y = pos.y - editorState.dragOffset.y;
+            redrawOverlay();
+          }
+          return;
+        }
+
         if (!editorState.isDrawing || !editorState.currentAction) return;
         if (e.cancelable) e.preventDefault();
         const pos = getPos(e);
@@ -893,6 +1148,7 @@
       };
 
       const endAction = () => {
+        editorState.draggingTextId = null;
         editorState.isDrawing = false;
         editorState.currentAction = null;
       };
@@ -912,33 +1168,60 @@
       const overlay = document.getElementById('pdfOverlayCanvas');
       if (!baseCanvas || !overlay) return;
 
-      baseCanvas.width = viewport.width;
-      baseCanvas.height = viewport.height;
-      overlay.width = viewport.width;
-      overlay.height = viewport.height;
+      const dpr = window.devicePixelRatio || 1;
+      const logicalW = viewport.width;
+      const logicalH = viewport.height;
+
+      baseCanvas.width = Math.round(logicalW * dpr);
+      baseCanvas.height = Math.round(logicalH * dpr);
+      baseCanvas.style.width = `${logicalW}px`;
+      baseCanvas.style.height = `${logicalH}px`;
+
+      overlay.width = Math.round(logicalW * dpr);
+      overlay.height = Math.round(logicalH * dpr);
+      overlay.style.width = `${logicalW}px`;
+      overlay.style.height = `${logicalH}px`;
 
       const indicator = document.getElementById('edPageIndicator');
       if (indicator) {
         indicator.textContent = `Page ${editorState.currentPage} of ${editorState.totalPages}`;
       }
 
-      await page.render({ canvasContext: baseCanvas.getContext('2d'), viewport }).promise;
+      const baseCtx = baseCanvas.getContext('2d');
+      baseCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      await page.render({ canvasContext: baseCtx, viewport }).promise;
       redrawOverlay();
     }
 
     function redrawOverlay() {
       const overlay = document.getElementById('pdfOverlayCanvas');
       if (!overlay) return;
+      const dpr = window.devicePixelRatio || 1;
+      const logicalW = overlay.width / dpr;
+      const logicalH = overlay.height / dpr;
       const ctx = overlay.getContext('2d');
-      ctx.clearRect(0, 0, overlay.width, overlay.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, logicalW, logicalH);
 
       const list = editorState.annotations[editorState.currentPage] || [];
       for (const item of list) {
         if (item.type === 'text') {
+          ctx.save();
+          ctx.font = getCssFont(item);
           ctx.fillStyle = item.color;
-          ctx.font = `bold ${item.fontSize}px sans-serif`;
           ctx.fillText(item.text, item.x, item.y);
+
+          if (item.id === editorState.selectedTextId) {
+            const w = Math.max(ctx.measureText(item.text).width, 24);
+            const h = item.fontSize * 1.2;
+            ctx.strokeStyle = '#4F46E5';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 3]);
+            ctx.strokeRect(item.x - 3, item.y - item.fontSize + 1, w + 6, h);
+          }
+          ctx.restore();
         } else if (item.type === 'draw' && item.points.length > 1) {
+          ctx.save();
           ctx.strokeStyle = item.color;
           ctx.lineWidth = 2.5;
           ctx.lineCap = 'round';
@@ -948,13 +1231,18 @@
             ctx.lineTo(item.points[i].x, item.points[i].y);
           }
           ctx.stroke();
+          ctx.restore();
         } else if (item.type === 'rect') {
+          ctx.save();
           ctx.strokeStyle = item.color;
           ctx.lineWidth = 2.5;
           ctx.strokeRect(item.x, item.y, item.w, item.h);
+          ctx.restore();
         } else if (item.type === 'whiteout') {
+          ctx.save();
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(item.x, item.y, item.w, item.h);
+          ctx.restore();
         }
       }
     }
@@ -1104,11 +1392,11 @@
 
       try {
         if (tool.id === 'edit') {
-          setStatus('loading', 'Embedding your edits into PDF...');
+          setStatus('loading', 'Embedding your formatted edits into PDF...');
           const pdfDoc = await PDFLib.PDFDocument.load(editorState.fileBytes);
-          const font = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
           const pages = pdfDoc.getPages();
           const scale = editorState.viewportScale;
+          const embeddedFonts = {};
 
           for (const [pageNumStr, items] of Object.entries(editorState.annotations)) {
             const page = pages[Number(pageNumStr) - 1];
@@ -1117,11 +1405,17 @@
 
             for (const item of items) {
               if (item.type === 'text') {
-                page.drawText(item.text, {
+                const txt = (item.text || '').trim();
+                if (!txt) continue;
+                const fontKey = getPdfStandardFontKey(item);
+                if (!embeddedFonts[fontKey]) {
+                  embeddedFonts[fontKey] = await pdfDoc.embedFont(fontKey);
+                }
+                page.drawText(txt, {
                   x: item.x / scale,
                   y: height - (item.y / scale),
                   size: item.fontSize / scale,
-                  font,
+                  font: embeddedFonts[fontKey],
                   color: hexToRgbNorm(item.color)
                 });
               } else if (item.type === 'draw' && item.points.length > 1) {
