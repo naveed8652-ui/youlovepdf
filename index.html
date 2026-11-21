@@ -272,7 +272,7 @@
       {
         id: 'edit',
         name: 'Edit PDF',
-        desc: 'Auto-match nearby PDF text styles, add/edit formatted text, nudge left/right/up/down, whiteout, boxes, or signatures.',
+        desc: 'Copy existing PDF words or added text with exact style/size/color, paste anywhere, nudge, whiteout, or sign.',
         category: 'organize',
         badge: 'New',
         accentBg: 'bg-indigo-50',
@@ -371,9 +371,11 @@
       color: '#111827',
       annotations: {},
       pageTextSpans: {},
+      selectedExistingSpan: null,
       selectedTextId: null,
       draggingTextId: null,
       dragOffset: { x: 0, y: 0 },
+      copiedTextData: null,
       isDrawing: false,
       currentAction: null,
       viewportScale: 1
@@ -502,6 +504,21 @@
       return spans;
     }
 
+    function hitTestExistingSpan(pos, pageNum = editorState.currentPage) {
+      const spans = editorState.pageTextSpans[pageNum] || [];
+      for (let i = spans.length - 1; i >= 0; i--) {
+        const sp = spans[i];
+        const left = sp.x - 4;
+        const right = sp.x + sp.width + 6;
+        const top = sp.y - sp.height - 4;
+        const bottom = sp.y + 6;
+        if (pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom) {
+          return sp;
+        }
+      }
+      return null;
+    }
+
     function detectNearbyStyle(pos, pageNum = editorState.currentPage) {
       const spans = editorState.pageTextSpans[pageNum] || [];
       if (!spans.length) return null;
@@ -590,8 +607,10 @@
       editorState.mode = 'text';
       editorState.annotations = {};
       editorState.pageTextSpans = {};
+      editorState.selectedExistingSpan = null;
       editorState.selectedTextId = null;
       editorState.draggingTextId = null;
+      editorState.copiedTextData = null;
       editorState.isDrawing = false;
       editorState.currentAction = null;
 
@@ -861,6 +880,123 @@
       redrawOverlay();
     }
 
+    function updatePasteButtonState() {
+      const pasteBtn = document.getElementById('edPasteTextBtn');
+      const whiteoutPasteBtn = document.getElementById('edWhiteoutPasteBtn');
+      const hasData = Boolean(editorState.copiedTextData);
+      if (pasteBtn) {
+        pasteBtn.disabled = !hasData;
+        pasteBtn.classList.toggle('opacity-40', !hasData);
+        pasteBtn.classList.toggle('cursor-not-allowed', !hasData);
+      }
+      if (whiteoutPasteBtn) {
+        const canCutMove = Boolean(editorState.copiedTextData && editorState.copiedTextData.sourceSpan);
+        whiteoutPasteBtn.disabled = !canCutMove;
+        whiteoutPasteBtn.classList.toggle('opacity-40', !canCutMove);
+        whiteoutPasteBtn.classList.toggle('cursor-not-allowed', !canCutMove);
+      }
+    }
+
+    function copyExistingSpanData(span) {
+      if (!span) return false;
+      editorState.selectedExistingSpan = span;
+      editorState.copiedTextData = {
+        text: span.text.trim(),
+        fontFamily: span.fontFamily || 'helvetica',
+        fontSize: span.fontSize || 18,
+        bold: Boolean(span.bold),
+        italic: Boolean(span.italic),
+        color: editorState.color || '#111827',
+        sourceSpan: { ...span, page: editorState.currentPage }
+      };
+
+      editorState.fontFamily = editorState.copiedTextData.fontFamily;
+      editorState.fontSize = editorState.copiedTextData.fontSize;
+      editorState.bold = editorState.copiedTextData.bold;
+      editorState.italic = editorState.copiedTextData.italic;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(editorState.copiedTextData.text).catch(() => {});
+      }
+
+      updatePasteButtonState();
+      redrawOverlay();
+      return true;
+    }
+
+    function copySelectedTextItem() {
+      const sel = getSelectedTextItem();
+      if (sel) {
+        editorState.copiedTextData = {
+          text: sel.text,
+          fontFamily: sel.fontFamily || 'helvetica',
+          fontSize: sel.fontSize || 18,
+          bold: Boolean(sel.bold),
+          italic: Boolean(sel.italic),
+          color: sel.color || '#111827',
+          sourceSpan: null
+        };
+        editorState.fontFamily = editorState.copiedTextData.fontFamily;
+        editorState.fontSize = editorState.copiedTextData.fontSize;
+        editorState.bold = editorState.copiedTextData.bold;
+        editorState.italic = editorState.copiedTextData.italic;
+        editorState.color = editorState.copiedTextData.color;
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(editorState.copiedTextData.text).catch(() => {});
+        }
+        updatePasteButtonState();
+        return true;
+      }
+
+      if (editorState.selectedExistingSpan) {
+        return copyExistingSpanData(editorState.selectedExistingSpan);
+      }
+      return false;
+    }
+
+    function pasteCopiedTextItem(targetPos = null, withSourceWhiteout = false) {
+      if (!editorState.copiedTextData) return null;
+
+      if (!editorState.annotations[editorState.currentPage]) {
+        editorState.annotations[editorState.currentPage] = [];
+      }
+
+      if (withSourceWhiteout && editorState.copiedTextData.sourceSpan && editorState.copiedTextData.sourceSpan.page === editorState.currentPage) {
+        const sp = editorState.copiedTextData.sourceSpan;
+        editorState.annotations[editorState.currentPage].push({
+          type: 'whiteout',
+          x: sp.x - 2,
+          y: sp.y - sp.height + 1,
+          w: sp.width + 6,
+          h: sp.height + 4
+        });
+      }
+
+      const sel = getSelectedTextItem();
+      const baseX = targetPos ? targetPos.x : (sel ? sel.x + 18 : 80);
+      const baseY = targetPos ? targetPos.y : (sel ? sel.y + 24 : 100);
+
+      const pastedItem = {
+        id: 'txt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        type: 'text',
+        x: baseX,
+        y: baseY,
+        text: editorState.copiedTextData.text,
+        fontFamily: editorState.copiedTextData.fontFamily,
+        fontSize: editorState.copiedTextData.fontSize,
+        bold: editorState.copiedTextData.bold,
+        italic: editorState.copiedTextData.italic,
+        color: editorState.copiedTextData.color
+      };
+
+      editorState.annotations[editorState.currentPage].push(pastedItem);
+      editorState.selectedTextId = pastedItem.id;
+      syncTextInspectorBar();
+      redrawOverlay();
+      return pastedItem;
+    }
+
     function syncTextInspectorBar() {
       const bar = document.getElementById('textInspectorBar');
       if (!bar) return;
@@ -905,9 +1041,10 @@
         editorState.pdfDoc = await pdfjsLib.getDocument({ data: editorState.fileBytes.slice(0) }).promise;
         editorState.totalPages = editorState.pdfDoc.numPages;
         editorState.currentPage = 1;
-        editorState.mode = 'text';
+        editorState.mode = 'copyword';
         editorState.annotations = {};
         editorState.pageTextSpans = {};
+        editorState.selectedExistingSpan = null;
         editorState.selectedTextId = null;
         hideStatus();
 
@@ -915,16 +1052,15 @@
         optionsPanel.innerHTML = `
           <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-gray-200">
             <div class="flex flex-wrap items-center gap-1.5">
-              <button type="button" data-ed-mode="text" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-[#E5322D] text-white">T Add / Edit Text</button>
+              <button type="button" data-ed-mode="copyword" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-[#E5322D] text-white">📋 Copy PDF Word</button>
+              <button type="button" data-ed-mode="text" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 text-gray-700">T Add / Edit Text</button>
               <button type="button" data-ed-mode="whiteout" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 text-gray-700">⬜ Whiteout</button>
               <button type="button" data-ed-mode="rect" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 text-gray-700">▭ Box</button>
               <button type="button" data-ed-mode="draw" class="ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 text-gray-700">✎ Draw / Sign</button>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <label class="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 rounded-lg cursor-pointer" title="Auto-copy font, size, bold & italic from nearby PDF text">
-                <input id="edAutoMatchStyle" type="checkbox" ${editorState.autoMatchStyle ? 'checked' : ''} class="accent-indigo-600" />
-                Auto-Copy Nearby Style
-              </label>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button type="button" id="edPasteTextBtn" disabled class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 opacity-40 cursor-not-allowed">📌 Paste</button>
+              <button type="button" id="edWhiteoutPasteBtn" disabled title="Whiteout copied original word & paste at current/new position" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 opacity-40 cursor-not-allowed">✂ Whiteout + Paste</button>
               <button type="button" id="edUndoBtn" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-gray-200 hover:bg-gray-300 text-gray-800">↩ Undo</button>
             </div>
           </div>
@@ -939,7 +1075,8 @@
                 <button type="button" id="edMoveUpBtn" title="Move Up (ArrowUp)" class="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs font-extrabold text-gray-800">↑</button>
                 <button type="button" id="edMoveDownBtn" title="Move Down (ArrowDown)" class="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs font-extrabold text-gray-800">↓</button>
                 <button type="button" id="edMoveRightBtn" title="Move Right (ArrowRight)" class="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs font-extrabold text-gray-800">→</button>
-                <button type="button" id="edDeleteTextBtn" class="ml-2 text-xs font-bold text-red-600 hover:underline">🗑 Delete</button>
+                <button type="button" id="edCopyTextBtn" class="ml-1 px-2 py-1 rounded bg-indigo-50 hover:bg-indigo-100 text-xs font-bold text-indigo-700">📋 Copy</button>
+                <button type="button" id="edDeleteTextBtn" class="ml-1 text-xs font-bold text-red-600 hover:underline">🗑 Delete</button>
               </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
@@ -975,7 +1112,7 @@
           </div>
 
           <div class="flex items-center justify-between text-xs font-semibold text-gray-600">
-            <span id="edHintText">Click over existing text to auto-copy its style, drag or use ← ↑ ↓ → arrows to move.</span>
+            <span id="edHintText">Click any existing PDF word to copy its word &amp; style, then click 📌 Paste (or Ctrl+V) anywhere to place it.</span>
             <div class="flex items-center gap-2">
               <button type="button" id="edPrevPage" class="px-2.5 py-1 bg-white border border-gray-200 rounded-lg hover:bg-gray-100">◀ Prev</button>
               <span id="edPageIndicator">Page 1 of ${editorState.totalPages}</span>
@@ -1023,7 +1160,8 @@
 
     function bindEditorControls() {
       const hints = {
-        text: 'Click over existing text to auto-copy its style, drag or use ← ↑ ↓ → arrows to move.',
+        copyword: 'Click any existing PDF word to copy its word & style, then click 📌 Paste (or Ctrl+V) anywhere to place it.',
+        text: 'Click added text to edit/drag, or click empty area to add new text with nearby style.',
         whiteout: 'Click and drag over existing PDF text to cover it cleanly with white.',
         rect: 'Click and drag to draw a border box.',
         draw: 'Click and drag to draw freehand or add a signature.'
@@ -1038,15 +1176,9 @@
           btn.className = 'ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-[#E5322D] text-white';
           const hintEl = document.getElementById('edHintText');
           if (hintEl) hintEl.textContent = hints[editorState.mode];
+          redrawOverlay();
         });
       });
-
-      const autoMatchCheckbox = document.getElementById('edAutoMatchStyle');
-      if (autoMatchCheckbox) {
-        autoMatchCheckbox.addEventListener('change', e => {
-          editorState.autoMatchStyle = e.target.checked;
-        });
-      }
 
       const textInput = document.getElementById('edSelectedTextInput');
       const fontSelect = document.getElementById('edFontFamily');
@@ -1055,6 +1187,18 @@
       const italicBtn = document.getElementById('edItalicBtn');
       const colorPicker = document.getElementById('edColorPicker');
       const deleteTextBtn = document.getElementById('edDeleteTextBtn');
+
+      document.getElementById('edCopyTextBtn')?.addEventListener('click', () => {
+        copySelectedTextItem();
+      });
+
+      document.getElementById('edPasteTextBtn')?.addEventListener('click', () => {
+        pasteCopiedTextItem();
+      });
+
+      document.getElementById('edWhiteoutPasteBtn')?.addEventListener('click', () => {
+        pasteCopiedTextItem(null, true);
+      });
 
       document.getElementById('edMoveLeftBtn')?.addEventListener('click', () => nudgeSelectedText(-4, 0));
       document.getElementById('edMoveRightBtn')?.addEventListener('click', () => nudgeSelectedText(4, 0));
@@ -1118,6 +1262,9 @@
       if (colorPicker) {
         colorPicker.addEventListener('input', e => {
           editorState.color = e.target.value;
+          if (editorState.copiedTextData) {
+            editorState.copiedTextData.color = e.target.value;
+          }
           const sel = getSelectedTextItem();
           if (sel) {
             sel.color = e.target.value;
@@ -1151,6 +1298,7 @@
         if (editorState.currentPage > 1) {
           editorState.currentPage--;
           editorState.selectedTextId = null;
+          editorState.selectedExistingSpan = null;
           syncTextInspectorBar();
           await renderEditorPage();
         }
@@ -1160,6 +1308,7 @@
         if (editorState.currentPage < editorState.totalPages) {
           editorState.currentPage++;
           editorState.selectedTextId = null;
+          editorState.selectedExistingSpan = null;
           syncTextInspectorBar();
           await renderEditorPage();
         }
@@ -1188,6 +1337,32 @@
           editorState.annotations[editorState.currentPage] = [];
         }
 
+        if (editorState.mode === 'copyword') {
+          const hitAdded = hitTestTextItem(pos);
+          if (hitAdded) {
+            editorState.selectedTextId = hitAdded.id;
+            editorState.draggingTextId = hitAdded.id;
+            editorState.dragOffset = { x: pos.x - hitAdded.x, y: pos.y - hitAdded.y };
+            copySelectedTextItem();
+            syncTextInspectorBar();
+            redrawOverlay();
+            return;
+          }
+
+          const hitExisting = hitTestExistingSpan(pos);
+          if (hitExisting) {
+            copyExistingSpanData(hitExisting);
+            setStatus('info', `Copied word "${hitExisting.text.trim()}" (${hitExisting.fontFamily}, ${hitExisting.fontSize}px). Click 📌 Paste or Ctrl+V anywhere to place it.`);
+            return;
+          }
+
+          if (editorState.copiedTextData) {
+            pasteCopiedTextItem(pos, false);
+            return;
+          }
+          return;
+        }
+
         if (editorState.mode === 'text') {
           const hit = hitTestTextItem(pos);
           if (hit) {
@@ -1212,7 +1387,7 @@
             type: 'text',
             x: pos.x,
             y: spawnY,
-            text: 'Editable Text',
+            text: matchedSpan ? matchedSpan.text.trim() : 'Editable Text',
             fontFamily,
             fontSize,
             bold,
@@ -1290,7 +1465,22 @@
     window.addEventListener('keydown', e => {
       if (!state.activeTool || state.activeTool.id !== 'edit') return;
       const activeTag = document.activeElement && document.activeElement.tagName;
-      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
+      const isTypingField = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && !isTypingField) {
+        if (copySelectedTextItem()) e.preventDefault();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v' && !isTypingField) {
+        if (editorState.copiedTextData) {
+          e.preventDefault();
+          pasteCopiedTextItem();
+        }
+        return;
+      }
+
+      if (isTypingField) return;
       const sel = getSelectedTextItem();
       if (!sel) return;
 
@@ -1348,6 +1538,16 @@
       const ctx = overlay.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, logicalW, logicalH);
+
+      if (editorState.selectedExistingSpan && editorState.mode === 'copyword') {
+        const sp = editorState.selectedExistingSpan;
+        ctx.save();
+        ctx.strokeStyle = '#E5322D';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 2]);
+        ctx.strokeRect(sp.x - 2, sp.y - sp.height + 1, sp.width + 4, sp.height + 2);
+        ctx.restore();
+      }
 
       const list = editorState.annotations[editorState.currentPage] || [];
       for (const item of list) {
