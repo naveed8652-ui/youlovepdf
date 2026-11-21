@@ -8,13 +8,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-6MT4R42VD1"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
+    function gtag() { dataLayer.push(arguments); }
     gtag('js', new Date());
-
     gtag('config', 'G-6MT4R42VD1');
   </script>
 
@@ -22,6 +22,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
   <style>
     * { font-family: 'Plus Jakarta Sans', sans-serif; }
     body { background-color: #F4F5F8; color: #1F2937; }
@@ -50,7 +51,7 @@
   <!-- Top Navigation Bar -->
   <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-200">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <button id="brandHomeBtn" class="flex items-center gap-2.5 text-left group focus:outline-none">
+      <button id="brandHomeBtn" type="button" class="flex items-center gap-2.5 text-left group focus:outline-none">
         <div class="w-9 h-9 rounded-xl bg-[#E5322D] flex items-center justify-center text-white shadow-sm group-hover:bg-[#C8231E] transition">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -62,13 +63,13 @@
       </button>
 
       <nav class="hidden md:flex items-center gap-6 text-sm font-semibold text-gray-600">
-        <button data-nav-tool="merge" class="hover:text-[#E5322D] transition">Merge PDF</button>
-        <button data-nav-tool="split" class="hover:text-[#E5322D] transition">Split PDF</button>
-        <button data-nav-tool="edit" class="hover:text-[#E5322D] transition">Edit PDF</button>
-        <button data-nav-tool="jpg-to-pdf" class="hover:text-[#E5322D] transition">JPG to PDF</button>
-        <button data-nav-tool="pdf-to-jpg" class="hover:text-[#E5322D] transition">PDF to JPG</button>
-        <button data-nav-tool="rotate" class="hover:text-[#E5322D] transition">Rotate PDF</button>
-        <button data-nav-tool="watermark" class="hover:text-[#E5322D] transition">Watermark</button>
+        <button data-nav-tool="merge" type="button" class="hover:text-[#E5322D] transition">Merge PDF</button>
+        <button data-nav-tool="split" type="button" class="hover:text-[#E5322D] transition">Split PDF</button>
+        <button data-nav-tool="edit" type="button" class="hover:text-[#E5322D] transition">Edit PDF</button>
+        <button data-nav-tool="jpg-to-pdf" type="button" class="hover:text-[#E5322D] transition">JPG to PDF</button>
+        <button data-nav-tool="pdf-to-jpg" type="button" class="hover:text-[#E5322D] transition">PDF to JPG</button>
+        <button data-nav-tool="rotate" type="button" class="hover:text-[#E5322D] transition">Rotate PDF</button>
+        <button data-nav-tool="watermark" type="button" class="hover:text-[#E5322D] transition">Watermark</button>
       </nav>
 
       <div class="flex items-center gap-2">
@@ -76,7 +77,7 @@
           <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
           100% Browser Private
         </span>
-        <button id="mobileAllToolsBtn" class="md:hidden text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg transition">
+        <button id="mobileAllToolsBtn" type="button" class="md:hidden text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1.5 rounded-lg transition">
           All Tools
         </button>
       </div>
@@ -97,16 +98,16 @@
 
         <!-- Category Filter Pills -->
         <div id="categoryFilters" class="mt-6 flex flex-wrap items-center justify-center gap-2">
-          <button data-filter="all" class="filter-btn px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-[#E5322D] text-white shadow-sm transition">
+          <button data-filter="all" type="button" class="filter-btn px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-[#E5322D] text-white shadow-sm transition">
             All Tools
           </button>
-          <button data-filter="organize" class="filter-btn px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-white text-gray-700 border border-gray-200 hover:border-gray-300 transition">
+          <button data-filter="organize" type="button" class="filter-btn px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-white text-gray-700 border border-gray-200 hover:border-gray-300 transition">
             Organize &amp; Edit
           </button>
-          <button data-filter="convert-to-pdf" class="filter-btn px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-white text-gray-700 border border-gray-200 hover:border-gray-300 transition">
+          <button data-filter="convert-to-pdf" type="button" class="filter-btn px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-white text-gray-700 border border-gray-200 hover:border-gray-300 transition">
             Convert to PDF
           </button>
-          <button data-filter="convert-from-pdf" class="filter-btn px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-white text-gray-700 border border-gray-200 hover:border-gray-300 transition">
+          <button data-filter="convert-from-pdf" type="button" class="filter-btn px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-white text-gray-700 border border-gray-200 hover:border-gray-300 transition">
             Convert from PDF
           </button>
         </div>
@@ -144,13 +145,13 @@
     <!-- Active Tool Workspace View -->
     <section id="workspaceView" class="hidden max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div class="mb-6 flex items-center justify-between gap-4">
-        <button id="backToToolsBtn" class="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-[#E5322D] bg-white border border-gray-200 px-3.5 py-2 rounded-xl shadow-xs transition">
+        <button id="backToToolsBtn" type="button" class="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-[#E5322D] bg-white border border-gray-200 px-3.5 py-2 rounded-xl shadow-xs transition">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
           Back to All Tools
         </button>
-        <button id="clearFilesBtn" class="hidden text-xs sm:text-sm font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3.5 py-2 rounded-xl transition">
+        <button id="clearFilesBtn" type="button" class="hidden text-xs sm:text-sm font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3.5 py-2 rounded-xl transition">
           Reset / Clear Files
         </button>
       </div>
@@ -237,7 +238,7 @@
   </footer>
 
   <script>
-    if (window['pdfjsLib']) {
+    if (window.pdfjsLib) {
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
 
@@ -405,10 +406,16 @@
         .replace(/"/g, '&quot;');
     }
 
+    function hexToRgbNorm(hex) {
+      const clean = (hex || '#E5322D').replace('#', '');
+      const num = parseInt(clean, 16);
+      return PDFLib.rgb(((num >> 16) & 255) / 255, ((num >> 8) & 255) / 255, (num & 255) / 255);
+    }
+
     function renderToolCards(filter = 'all') {
       const filtered = filter === 'all' ? TOOLS : TOOLS.filter(t => t.category === filter);
       toolsGrid.innerHTML = filtered.map(tool => `
-        <button data-tool-id="${tool.id}" class="tool-card rounded-2xl p-6 text-left flex flex-col justify-between group focus:outline-none">
+        <button data-tool-id="${tool.id}" type="button" class="tool-card rounded-2xl p-6 text-left flex flex-col justify-between group focus:outline-none">
           <div>
             <div class="flex items-start justify-between gap-2 mb-4">
               <div class="w-12 h-12 rounded-xl ${tool.accentBg} ${tool.accentText} flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -457,7 +464,15 @@
       state.files = [];
       state.pdfPageCount = 0;
       state.organizedPages = [];
+      editorState.pdfDoc = null;
+      editorState.fileBytes = null;
+      editorState.currentPage = 1;
+      editorState.totalPages = 0;
+      editorState.mode = 'text';
       editorState.annotations = {};
+      editorState.isDrawing = false;
+      editorState.currentAction = null;
+
       if (state.lastBlobUrl) {
         URL.revokeObjectURL(state.lastBlobUrl);
         state.lastBlobUrl = null;
@@ -470,6 +485,7 @@
       optionsPanel.classList.add('hidden');
       optionsPanel.innerHTML = '';
       statusBox.classList.add('hidden');
+      statusBox.innerHTML = '';
       resultBox.classList.add('hidden');
       actionFooter.classList.add('hidden');
       clearFilesBtn.classList.add('hidden');
@@ -483,8 +499,9 @@
       state.activeTool = tool;
       resetWorkspaceState();
 
-      document.getElementById('activeToolIcon').className = `w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${tool.accentBg} ${tool.accentText}`;
-      document.getElementById('activeToolIcon').innerHTML = tool.icon;
+      const iconEl = document.getElementById('activeToolIcon');
+      iconEl.className = `w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${tool.accentBg} ${tool.accentText}`;
+      iconEl.innerHTML = tool.icon;
       document.getElementById('activeToolTitle').textContent = tool.name;
       document.getElementById('activeToolSubtitle').textContent = tool.desc;
       processBtnLabel.textContent = tool.cta;
@@ -504,14 +521,14 @@
       statusBox.classList.remove('hidden');
       if (type === 'error') {
         statusBox.className = 'mt-6 p-4 rounded-xl border text-sm bg-red-50 border-red-200 text-red-800 font-medium';
+        statusBox.textContent = message;
       } else if (type === 'loading') {
         statusBox.className = 'mt-6 p-4 rounded-xl border text-sm bg-amber-50 border-amber-200 text-amber-900 font-medium flex items-center gap-2.5';
         statusBox.innerHTML = `<svg class="w-4 h-4 animate-spin text-[#E5322D] shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg><span>${escapeHtml(message)}</span>`;
-        return;
       } else {
         statusBox.className = 'mt-6 p-4 rounded-xl border text-sm bg-blue-50 border-blue-200 text-blue-800 font-medium';
+        statusBox.textContent = message;
       }
-      statusBox.textContent = message;
     }
 
     function hideStatus() {
@@ -717,6 +734,7 @@
         editorState.pdfDoc = await pdfjsLib.getDocument({ data: editorState.fileBytes.slice(0) }).promise;
         editorState.totalPages = editorState.pdfDoc.numPages;
         editorState.currentPage = 1;
+        editorState.mode = 'text';
         editorState.annotations = {};
         hideStatus();
 
@@ -731,7 +749,7 @@
             </div>
             <div class="flex items-center gap-2">
               <label class="text-xs font-semibold text-gray-600">Color:</label>
-              <input id="edColorPicker" type="color" value="#E5322D" class="w-7 h-7 rounded cursor-pointer border border-gray-300" />
+              <input id="edColorPicker" type="color" value="${editorState.color}" class="w-7 h-7 rounded cursor-pointer border border-gray-300" />
               <select id="edFontSize" class="text-xs font-semibold bg-white border border-gray-200 rounded-lg px-2 py-1.5">
                 <option value="14">14px</option>
                 <option value="18" selected>18px</option>
@@ -762,7 +780,7 @@
         bindEditorControls();
         await renderEditorPage();
       } catch (err) {
-        setStatus('error', 'Failed to load PDF for editing.');
+        setStatus('error', 'Failed to load PDF for editing: ' + (err && err.message ? err.message : 'Unknown error'));
       }
     }
 
@@ -781,12 +799,18 @@
             b.className = 'ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 text-gray-700';
           });
           btn.className = 'ed-mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-[#E5322D] text-white';
-          document.getElementById('edHintText').textContent = hints[editorState.mode];
+          const hintEl = document.getElementById('edHintText');
+          if (hintEl) hintEl.textContent = hints[editorState.mode];
         });
       });
 
-      document.getElementById('edColorPicker').addEventListener('input', e => editorState.color = e.target.value);
-      document.getElementById('edFontSize').addEventListener('change', e => editorState.fontSize = Number(e.target.value));
+      document.getElementById('edColorPicker').addEventListener('input', e => {
+        editorState.color = e.target.value;
+      });
+
+      document.getElementById('edFontSize').addEventListener('change', e => {
+        editorState.fontSize = Number(e.target.value);
+      });
 
       document.getElementById('edUndoBtn').addEventListener('click', () => {
         const list = editorState.annotations[editorState.currentPage] || [];
@@ -811,12 +835,13 @@
       const overlay = document.getElementById('pdfOverlayCanvas');
       const getPos = e => {
         const r = overlay.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const clientX = e.touches && e.touches.length ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches && e.touches.length ? e.touches[0].clientY : e.clientY;
         return { x: clientX - r.left, y: clientY - r.top };
       };
 
       const startAction = e => {
+        if (!state.activeTool || state.activeTool.id !== 'edit') return;
         const pos = getPos(e);
         if (!editorState.annotations[editorState.currentPage]) {
           editorState.annotations[editorState.currentPage] = [];
@@ -856,7 +881,7 @@
 
       const moveAction = e => {
         if (!editorState.isDrawing || !editorState.currentAction) return;
-        e.preventDefault();
+        if (e.cancelable) e.preventDefault();
         const pos = getPos(e);
         if (editorState.currentAction.type === 'draw') {
           editorState.currentAction.points.push(pos);
@@ -885,13 +910,18 @@
       const viewport = page.getViewport({ scale: editorState.viewportScale });
       const baseCanvas = document.getElementById('pdfBaseCanvas');
       const overlay = document.getElementById('pdfOverlayCanvas');
+      if (!baseCanvas || !overlay) return;
 
       baseCanvas.width = viewport.width;
       baseCanvas.height = viewport.height;
       overlay.width = viewport.width;
       overlay.height = viewport.height;
 
-      document.getElementById('edPageIndicator').textContent = `Page ${editorState.currentPage} of ${editorState.totalPages}`;
+      const indicator = document.getElementById('edPageIndicator');
+      if (indicator) {
+        indicator.textContent = `Page ${editorState.currentPage} of ${editorState.totalPages}`;
+      }
+
       await page.render({ canvasContext: baseCanvas.getContext('2d'), viewport }).promise;
       redrawOverlay();
     }
@@ -914,7 +944,9 @@
           ctx.lineCap = 'round';
           ctx.beginPath();
           ctx.moveTo(item.points[0].x, item.points[0].y);
-          for (let i = 1; i < item.points.length; i++) ctx.lineTo(item.points[i].x, item.points[i].y);
+          for (let i = 1; i < item.points.length; i++) {
+            ctx.lineTo(item.points[i].x, item.points[i].y);
+          }
           ctx.stroke();
         } else if (item.type === 'rect') {
           ctx.strokeStyle = item.color;
@@ -925,12 +957,6 @@
           ctx.fillRect(item.x, item.y, item.w, item.h);
         }
       }
-    }
-
-    function hexToRgbNorm(hex) {
-      const clean = hex.replace('#', '');
-      const num = parseInt(clean, 16);
-      return PDFLib.rgb(((num >> 16) & 255) / 255, ((num >> 8) & 255) / 255, (num & 255) / 255);
     }
 
     async function renderToolOptionsAndPreviews() {
@@ -991,7 +1017,7 @@
         optionsPanel.querySelectorAll('input[name="splitMode"]').forEach(radio => {
           radio.addEventListener('change', () => {
             const wrap = document.getElementById('rangeInputWrap');
-            wrap.classList.toggle('hidden', radio.value !== 'range');
+            if (wrap) wrap.classList.toggle('hidden', radio.value !== 'range');
           });
         });
       } else if (tool.id === 'rotate') {
@@ -1086,7 +1112,7 @@
 
           for (const [pageNumStr, items] of Object.entries(editorState.annotations)) {
             const page = pages[Number(pageNumStr) - 1];
-            if (!page || !items.length) continue;
+            if (!page || !items || !items.length) continue;
             const { height } = page.getSize();
 
             for (const item of items) {
